@@ -1,6 +1,6 @@
 # 🏦 Apex Bank - Single User Transaction CRUD System
 
-A full-stack banking transaction manager featuring **Full CRUD** (Create, Read, Update, Delete) and rich **User Behavior Simulation**. Built with **React** (frontend) and **Node.js Express** (backend), using native browser `fetch()` for clean, understandable HTTP network requests without any complex boilerplate.
+A full-stack banking transaction manager featuring **Full CRUD** (Create, Read, Update, Delete) and rich **User Behavior Simulation**. Built with **React** (frontend), **Redux Toolkit + RTK Query** for server-state fetching and caching, and **Node.js Express** (backend).
 
 ---
 
@@ -48,6 +48,7 @@ The application provides **1-Click Behavior Simulation buttons** and seed data i
 |---|---|---|---|
 | **Create** | `POST` | `/api/transactions` | Add custom transactions via the modal or quick behavior presets |
 | **Read** | `GET` | `/api/transactions` | Retrieve all transactions with search, filter, and sorting |
+| **Read Detail** | `GET` | `/api/transactions/:id` | Retrieve one transaction for the prefetched details view |
 | **Read Summary**| `GET` | `/api/transactions/summary`| Calculate balance, total income, expenses, holds, and alerts |
 | **Update** | `PUT` | `/api/transactions/:id` | Edit any details, settle pending holds, or resolve fraud flags |
 | **Delete** | `DELETE`| `/api/transactions/:id` | Remove entries with in-app confirmation and recalculate ledger |
@@ -111,3 +112,73 @@ The client uses Redux Toolkit (`@reduxjs/toolkit`) for both app state and server
 - Reset demo data: `useResetSeedTransactionsMutation()` → `POST /api/transactions/seed`
 
 Read `Client/src/features/transactions/transactionsApi.js` alongside the `use*Query` and `use*Mutation` calls in `Client/src/App.jsx` to see the request-to-cache-to-UI lifecycle.
+
+## RTK Query Concepts Demonstrated
+
+### Queries
+
+`useGetTransactionsQuery(transactionFilters)` subscribes the component to the `getTransactions` endpoint and fetches matching transactions. RTK Query provides the cached result and loading/error state to the UI.
+
+### Cache
+
+RTK Query stores results by endpoint and serialized query arguments. For example, `getTransactions` with a search term and `getTransactions` with a status filter are distinct cache entries. Components using the same endpoint and arguments can share the cached result.
+
+### Tags
+
+- `providesTags` associates cached data with tags, including individual transaction IDs and the transaction-list tag.
+- `invalidatesTags` marks matching cached data stale after successful mutations. Active queries that provided those tags refetch automatically.
+
+### Normal mutation flow
+
+```text
+Mutation
+   ↓
+invalidateTags
+   ↓
+active query refetches
+   ↓
+updated UI
+```
+
+### Optimistic update
+
+Editing a transaction applies its changes to the current filtered `getTransactions` cache entry using `updateQueryData` before awaiting the request. On failure, the patch is undone and the mutation caller displays an error toast.
+
+```text
+Mutation
+   ↓
+updateQueryData
+   ↓
+UI updates immediately
+   ↓
+API succeeds → keep
+API fails → rollback
+```
+
+### Pessimistic update
+
+Quick status changes use the same update mutation but wait for `queryFulfilled` before applying the server-confirmed transaction to the current list cache.
+
+```text
+Mutation
+   ↓
+wait for server
+   ↓
+updateQueryData
+   ↓
+UI updates
+```
+
+### Prefetching
+
+Hovering over or focusing a transaction in the list dispatches `transactionsApi.util.prefetch` for `getTransaction`, with `ifOlderThan: 60`. Opening the transaction details subscribes with `useGetTransactionQuery`; fresh prefetched data can be displayed immediately, and fresh cached data is not unnecessarily requested again.
+
+```text
+User intent detected
+   ↓
+prefetch()
+   ↓
+cache populated
+   ↓
+actual query can reuse cached data
+```

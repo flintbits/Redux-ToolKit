@@ -10,8 +10,10 @@ import Toast from './components/Toast';
 import TransactionList from './components/TransactionList';
 import TransactionModal from './components/TransactionModal';
 import {
+  transactionsApi,
   useCreateTransactionMutation,
   useDeleteTransactionMutation,
+  useGetTransactionQuery,
   useGetSummaryQuery,
   useGetTransactionsQuery,
   useResetSeedTransactionsMutation,
@@ -34,6 +36,7 @@ export default function App() {
   const toasts = useSelector(selectToasts);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [viewingTransactionId, setViewingTransactionId] = useState(null);
   const [deletingTransaction, setDeletingTransaction] = useState(null);
   const [resetSuccess, setResetSuccess] = useState(false);
   const debouncedSearch = useDebouncedValue(filters.search, 300);
@@ -58,6 +61,14 @@ export default function App() {
   } = useGetSummaryQuery(undefined, {
     refetchOnFocus: true,
     refetchOnReconnect: true,
+  });
+  const {
+    currentData: viewingTransaction,
+    error: viewingTransactionError,
+    isFetching: isFetchingTransaction,
+    refetch: refetchTransaction,
+  } = useGetTransactionQuery(viewingTransactionId, {
+    skip: viewingTransactionId === null,
   });
 
   const [createTransaction, { isLoading: isCreating }] = useCreateTransactionMutation();
@@ -100,10 +111,21 @@ export default function App() {
     setIsModalOpen(true);
   };
 
+  const handlePrefetchTransaction = (id) => {
+    dispatch(
+      transactionsApi.util.prefetch('getTransaction', id, { ifOlderThan: 60 }),
+    );
+  };
+
   const handleSubmitTransaction = async (formData) => {
     try {
       if (editingTransaction) {
-        await updateTransaction({ id: editingTransaction.id, changes: formData }).unwrap();
+        await updateTransaction({
+          id: editingTransaction.id,
+          changes: formData,
+          queryArgs: transactionFilters,
+          updateStrategy: 'optimistic',
+        }).unwrap();
         notify(`Updated "${formData.title}" successfully`, 'success');
       } else {
         await createTransaction(formData).unwrap();
@@ -132,7 +154,12 @@ export default function App() {
 
   const handleQuickStatusChange = async (id, status) => {
     try {
-      await updateTransaction({ id, changes: { status } }).unwrap();
+      await updateTransaction({
+        id,
+        changes: { status },
+        queryArgs: transactionFilters,
+        updateStrategy: 'pessimistic',
+      }).unwrap();
       notify(`Marked transaction as ${status}`, 'success');
     } catch (error) {
       notify(getApiErrorMessage(error, 'Failed to update transaction status'), 'error');
@@ -206,9 +233,81 @@ export default function App() {
           : null}
         onRetry={refetchTransactions}
         onEdit={handleOpenEditModal}
+        onView={(transaction) => setViewingTransactionId(transaction.id)}
+        onPrefetch={handlePrefetchTransaction}
         onDelete={handlePromptDelete}
         onQuickStatusChange={handleQuickStatusChange}
       />
+
+      {viewingTransactionId !== null && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setViewingTransactionId(null)}
+        >
+          <section
+            className="swiss-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transaction-details-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header-line">
+              <div>
+                <div className="swiss-label" style={{ fontSize: '0.65rem' }}>
+                  Transaction Details
+                </div>
+                <h3 id="transaction-details-title">
+                  {viewingTransaction?.title || 'Loading transaction...'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn-icon-minimal"
+                onClick={() => setViewingTransactionId(null)}
+                aria-label="Close transaction details"
+              >
+                <FiX />
+              </button>
+            </div>
+            <div className="modal-form-body">
+              {isFetchingTransaction && !viewingTransaction && (
+                <p className="transaction-detail-message">Loading transaction details...</p>
+              )}
+              {viewingTransactionError && (
+                <div className="transaction-detail-error" role="alert">
+                  <span>{getApiErrorMessage(viewingTransactionError)}</span>
+                  <button
+                    type="button"
+                    className="btn-swiss-secondary"
+                    onClick={refetchTransaction}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {viewingTransaction && (
+                <div className="transaction-detail-grid">
+                  {[
+                    ['Amount', `$${Number(viewingTransaction.amount).toFixed(2)}`],
+                    ['Type', viewingTransaction.type],
+                    ['Status', viewingTransaction.status],
+                    ['Category', viewingTransaction.category],
+                    ['Date', new Date(viewingTransaction.date).toLocaleDateString()],
+                    ['Recipient', viewingTransaction.recipient || '—'],
+                    ['Payment method', viewingTransaction.paymentMethod],
+                    ['Notes', viewingTransaction.notes || '—'],
+                  ].map(([label, value]) => (
+                    <div className="transaction-detail-item" key={label}>
+                      <span className="swiss-label">{label}</span>
+                      <span>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       <TransactionModal
         isOpen={isModalOpen}

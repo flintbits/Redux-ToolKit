@@ -642,6 +642,64 @@ body {
   text-overflow: ellipsis;
 }
 
+.ledger-title-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ledger-title-button:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ledger-title-button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.rtk-concepts-note {
+  padding: 0.65rem 1.5rem;
+  border-bottom: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.transaction-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.transaction-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+
+.transaction-detail-item .swiss-label {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.transaction-detail-message {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.transaction-detail-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--swiss-red);
+  font-size: 0.85rem;
+}
+
 .badge-tag {
   font-size: 0.68rem;
   font-weight: 600;

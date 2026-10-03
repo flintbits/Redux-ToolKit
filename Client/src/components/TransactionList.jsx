@@ -39,6 +39,8 @@ export default function TransactionList({
   error,
   onRetry,
   onEdit,
+  onView,
+  onPrefetch,
   onDelete,
   onQuickStatusChange
 }) {
@@ -91,6 +93,9 @@ export default function TransactionList({
           {transactions.length} record{transactions.length === 1 ? '' : 's'} registered
         </span>
       </div>
+      <div className="rtk-concepts-note">
+        RTK Query demo: cache invalidation · optimistic + pessimistic updates · detail prefetch
+      </div>
 
       <div>
         {transactions.map((t) => {
@@ -108,7 +113,12 @@ export default function TransactionList({
           }).format(t.amount);
 
           return (
-            <div key={t.id} className="ledger-row">
+            <div
+              key={t.id}
+              className="ledger-row"
+              onMouseEnter={() => onPrefetch(t.id)}
+              onFocus={() => onPrefetch(t.id)}
+            >
               {/* Left Column: Icon and Info */}
               <div className="ledger-left">
                 <div className="ledger-icon-box" title={t.category}>
@@ -117,7 +127,13 @@ export default function TransactionList({
 
                 <div className="ledger-info">
                   <div className="ledger-title-line">
-                    <span className="ledger-title">{t.title}</span>
+                    <button
+                      type="button"
+                      className="ledger-title ledger-title-button"
+                      onClick={() => onView(t)}
+                    >
+                      {t.title}
+                    </button>
                     <span className={`badge-tag ${t.status}`}>
                       {t.status === 'completed' && 'Settled'}
                       {t.status === 'pending' && 'Hold'}

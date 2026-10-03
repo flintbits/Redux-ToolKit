@@ -26,6 +26,13 @@ export const transactionsApi = createApi({
         { type: 'Transaction', id: 'LIST' },
       ],
     }),
+    getTransaction: builder.query({
+      query: (id) => `/transactions/${id}`,
+      transformResponse: (response) => response.data,
+      providesTags: (transaction) => (
+        transaction ? [{ type: 'Transaction', id: transaction.id }] : []
+      ),
+    }),
     getSummary: builder.query({
       query: () => '/transactions/summary',
       transformResponse: (response) => response.data,
@@ -47,6 +54,50 @@ export const transactionsApi = createApi({
         body: changes,
       }),
       transformResponse: (response) => response.data,
+      async onQueryStarted(
+        { id, changes, queryArgs, updateStrategy = 'optimistic' },
+        { dispatch, queryFulfilled },
+      ) {
+        const updateCachedTransaction = (transaction) => {
+          dispatch(
+            transactionsApi.util.updateQueryData(
+              'getTransactions',
+              queryArgs,
+              (draft) => {
+                const cachedTransaction = draft.find((item) => item.id === id);
+                if (cachedTransaction) Object.assign(cachedTransaction, transaction);
+              },
+            ),
+          );
+        };
+
+        if (updateStrategy === 'pessimistic') {
+          try {
+            const { data: updatedTransaction } = await queryFulfilled;
+            updateCachedTransaction(updatedTransaction);
+          } catch {
+            // The mutation caller reports the error; no cache patch was applied.
+          }
+          return;
+        }
+
+        const patchResult = dispatch(
+          transactionsApi.util.updateQueryData(
+            'getTransactions',
+            queryArgs,
+            (draft) => {
+              const cachedTransaction = draft.find((item) => item.id === id);
+              if (cachedTransaction) Object.assign(cachedTransaction, changes);
+            },
+          ),
+        );
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patchResult.undo();
+        }
+      },
       invalidatesTags: (result, error, { id }) => (
         error
           ? []
@@ -86,6 +137,7 @@ export const transactionsApi = createApi({
 
 export const {
   useGetTransactionsQuery,
+  useGetTransactionQuery,
   useGetSummaryQuery,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
